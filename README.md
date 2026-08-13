@@ -45,6 +45,8 @@ The land false-alarm issue described in v1.0 (below) has been addressed with a *
 | Ahırkapı Anchorage (open water) | 109 | 0 | 109 |
 | Bosphorus shoreline (mixed land/sea) | 3,826 | 3,263 | 563 |
 
+*Note: The Ahırkapı Anchorage result is reproducible directly from the notebook (default bbox). The Bosphorus shoreline result was obtained from a separate supplementary validation run (bbox: `[28.90, 40.95, 29.10, 41.05]`), used specifically to confirm the land-masking logic actively removes detections in a region with a genuine land/sea boundary — it is not part of the default pipeline run.*
+
 The open-water test confirms the pipeline correctly leaves valid maritime detections untouched. The coastal test confirms the land-masking logic actively identifies and removes land-based false alarms (coastal structures, buildings) that the CA-CFAR algorithm — by design — cannot distinguish from vessels on its own.
 
 ### Known limitation (v2.0)
