@@ -64,7 +64,7 @@ The shoreline run shows that the land mask removes many land-based false alarms 
 - **Resampling distorts the grid.** The window is about 17 km × 11 km but is resampled to 1000 × 1000 pixels, so pixels are roughly 17 m × 11 m instead of the native 10 m × 10 m.
 - **Coarse land mask, applied late.** Natural Earth 10 m polygons miss small structures such as piers, breakwaters and small islands, and only the box centre is tested. The mask is applied after detection rather than before it. The land polygons are also clipped to a fixed box (`[28.85, 40.90, 29.15, 41.10]`), so other areas need that box changed.
 - **No ground truth.** Detections in Istanbul are not scored; the xView3 benchmark is the only quantitative evaluation in this repository.
-- **The AIS step is random and unseeded.** Legal/dark counts change on every run and should not be interpreted.
+- **The AIS step is a random placeholder** (fixed seed, so the output is repeatable). Its "AIS match / no AIS" labels carry no information.
 
 ## Roadmap
 
