@@ -1,62 +1,86 @@
-# 🛰️ Sentinel-1 SAR: Autonomous "Dark Vessel" Detection Pipeline
+# Dark-Fleet-SAR-Detection: CFAR ship detection on Sentinel-1 SAR
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
-![SAR](https://img.shields.io/badge/Data-Sentinel--1%20SAR-lightgrey.svg)
-![Algorithm](https://img.shields.io/badge/Algorithm-2D%20CA--CFAR-red.svg)
-![Status](https://img.shields.io/badge/Status-v2.0%20Land%20Masking%20Validated-success.svg)
+![Data](https://img.shields.io/badge/Data-Sentinel--1%20SAR-lightgrey.svg)
+![Status](https://img.shields.io/badge/Status-research%20prototype-orange.svg)
 
-## 📌 Executive Summary
-Optical satellite imagery (like Sentinel-2) suffers from "Spatial Blindness" due to cloud cover and night-time limitations. This project overcomes these physical barriers by utilizing **Synthetic Aperture Radar (SAR)** data from Sentinel-1 to autonomously detect metallic structures (ships) in open oceans, regardless of weather or daylight.
+A small, end-to-end ship detection pipeline for Sentinel-1 radar imagery, built as a learning project around the "dark vessel" problem: ships that are visible on radar but do not broadcast their position over AIS.
 
-Going beyond simple detection, this pipeline features a simulated **Decision Support System (DSS)** that cross-references radar targets with AIS (Automatic Identification System) databases to identify **"Dark Vessels"**—ships that have intentionally disabled their tracking radios, often associated with illegal fishing, smuggling, or embargo evasion.
+The repository has two parts:
 
-## Detection benchmark (xView3-SAR)
-The detector family used in this project (CFAR variants) was evaluated against real labels on two xView3-SAR validation scenes, with thresholds chosen on one scene and tested on the other: see benchmark/. F1 fell from about 87% / 83% (CA / OS, scene 1, in-sample) to about 69% / 64% (scene 2), and the best threshold moved between scenes, so the fixed thresholds used for Istanbul here are not validated. The AIS cross-check in this project is still simulated.
+| Part | What it is | What is real, what is not |
+|---|---|---|
+| [`Dark_Fleet_SAR_Detection_v2.ipynb`](Dark_Fleet_SAR_Detection_v2.ipynb) | Case study on one Sentinel-1 scene over the Istanbul Ahırkapı anchorage: download, speckle filtering, CFAR detection, land masking, and a placeholder AIS step | Detection and land masking run on real data. **The AIS step is a random placeholder**, so the "legal / dark" labels it produces carry no information. |
+| [`benchmark/`](benchmark/) | Evaluation of the same CFAR detector family against real labels from the xView3-SAR dataset, with thresholds chosen on one scene and tested on another | Real data, real labels, locked thresholds. |
 
-## ⚙️ System Architecture (End-to-End Pipeline)
+## Key result: how well does the detector work?
 
-1. **Autonomous Data Ingestion:** Connects directly to the Microsoft Planetary Computer API, fetches Sentinel-1 RTC (Radiometrically Terrain Corrected) data, resolves CRS/Projection conflicts dynamically, and converts raw linear backscatter into logarithmic Decibel (dB) scale.
-2. **Signal Processing:** Applies morphological Median Speckle Filtering to smooth out sea-surface noise and wave clutters while preserving high-intensity metallic backscatters (Volume Scattering in the VH polarization).
-3. **Tactical Detection (CA-CFAR):** Implements a **2D Cell-Averaging Constant False Alarm Rate (CA-CFAR)** algorithm. Instead of static thresholds, it dynamically calculates local ocean background noise.
-4. **Target Clustering & Bounding:** Connects activated pixels, filters out single-pixel anomalies (sea foam), and generates bounding boxes around valid metallic signatures.
-5. **Land Masking (v2.0):** Converts each detection's pixel coordinates to real-world geographic coordinates (via affine transform scaling), then cross-references them against Natural Earth coastline data (GeoPandas/Shapely) to programmatically drop any detections falling on land — *before* they reach the AIS cross-check stage.
-6. **Intelligence Cross-Checking (AIS Mock):** Extracts the spatial coordinates of the remaining, confirmed-maritime targets and simulates an API call to a global AIS database to classify each as either a `🟢 Legal Vessel` or a `🔴 Dark Vessel`.
+The Istanbul notebook has no ground truth, so its detections cannot be scored. To measure the detector, the same family of CFAR detectors was evaluated on two scenes of the [xView3-SAR](https://iuu.xview.us/) validation set. Thresholds were chosen on scene 1 and then run unchanged on scene 2.
 
-## 📊 Tactical Dashboard Preview
-
-| 1. Filtered SAR Signal | 2. Target Clustering | 3. Tactical Intelligence |
-| :---: | :---: | :---: |
-| ![Filtered SAR Signal](https://github.com/user-attachments/assets/35258502-6944-47fb-a027-e93ad0ddd689) | ![CA-CFAR Detections](https://github.com/user-attachments/assets/c4675c32-aa17-47c0-b818-73a43082f523) | ![Dark Vessel Isolation](https://github.com/user-attachments/assets/c5b43f56-28a3-457f-a474-50608c1ae671) |
-| *Smoothed VH Polarization* | *CA-CFAR Detections* | *Dark Vessel Isolation* |
-
-## 🚀 How to Run (Proof of Concept)
-The entire pipeline is compiled into a single Jupyter Notebook for seamless execution.
-1. Clone the repository.
-2. Install the required spatial dependencies: `pip install pystac-client planetary-computer rasterio scipy matplotlib numpy geopandas shapely`
-3. Run the notebook sequentially. The system is currently locked onto the **Istanbul Ahirkapi Anchorage Area** (`bbox: [28.85, 40.85, 29.05, 40.95]`) to demonstrate high-density traffic detection.
-
----
-
-## ✅ v2.0 Update — Land Masking Implemented & Validated
-
-The land false-alarm issue described in v1.0 (below) has been addressed with a **Static Land Masking Pipeline**: each CFAR detection's pixel coordinates are converted to real-world lat/lon (accounting for the CRS of the native SAR projection and the resampling scale factor between the read window and the output array), then checked against Natural Earth 10m coastline polygons using a point-in-polygon test.
-
-**Validation results, tested on two distinct regions:**
-
-| Region | Raw Detections | Land-Based (Removed) | Confirmed Maritime |
+| Detector | Scene 1 F1 (in-sample) | Scene 2 F1 (locked threshold) | Scene 2 F1 (best threshold, optimistic) |
 |---|---|---|---|
-| Ahırkapı Anchorage (open water) | 109 | 0 | 109 |
-| Bosphorus shoreline (mixed land/sea) | 3,826 | 3,263 | 563 |
+| 2D CA-CFAR | 87.3% | 69.2% | 76.7% |
+| Hollow OS-CFAR | 83.3% | 63.5% | 74.2% |
 
-*Note: The Ahırkapı Anchorage result is reproducible directly from the notebook (default bbox). The Bosphorus shoreline result was obtained from a separate supplementary validation run (bbox: `[28.90, 40.95, 29.10, 41.05]`), used specifically to confirm the land-masking logic actively removes detections in a region with a genuine land/sea boundary — it is not part of the default pipeline run.*
+Performance dropped on the unseen scene and the best threshold moved between scenes, so a fixed dB threshold does not transfer reliably. This also means the fixed threshold used in the Istanbul notebook is not validated. Full tables, confidence intervals, protocol and limitations are in [`benchmark/README.md`](benchmark/README.md).
 
-The open-water test confirms the pipeline correctly leaves valid maritime detections untouched. The coastal test confirms the land-masking logic actively identifies and removes land-based false alarms (coastal structures, buildings) that the CA-CFAR algorithm — by design — cannot distinguish from vessels on its own.
+Note that the benchmark detectors use their own window sizes and thresholds (for example CA-CFAR with a 9 × 9 guard and 25 × 25 background window), which differ from the simpler detector in the Istanbul notebook described below.
 
-### Known limitation (v2.0)
-Land-masking accuracy is bounded by the resolution of the Natural Earth 10m coastline dataset. Small man-made structures (piers, breakwaters, docked vessels directly adjacent to shore) may not be captured with pixel-level precision. A higher-resolution coastline source (e.g. OpenStreetMap water polygons) is a candidate for v3.0.
+## Istanbul case study: pipeline
 
----
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/7brki/Dark-Fleet-SAR-Detection/blob/main/Dark_Fleet_SAR_Detection_v2.ipynb)
 
-## 🚧 v1.0 Original Limitation (Resolved in v2.0)
+- **Area and data:** bbox `[28.85, 40.85, 29.05, 40.95]` (Ahırkapı anchorage, Sea of Marmara), date range 2023-08-01 to 2023-08-15. The first matching Sentinel-1 RTC scene from Microsoft Planetary Computer is used (`S1A_IW_GRDH_1SDV_20230811T160002_...`).
 
-The initial PoC successfully detected and cross-referenced targets but had a known architectural vulnerability: the CA-CFAR algorithm is highly sensitive to dense metallic/concrete structures, so target boxes falling on a coastline, port crane, or urban area were misclassified as "Dark Vessels" (since static buildings emit no AIS signal). This is the issue resolved above.
+1. **Read and convert:** VV and VH are read for the bbox window, resampled to 1000 × 1000 pixels, and converted to dB.
+2. **Speckle filtering:** 3 × 3 median filter on VH. VH (cross-polarisation) is used because sea clutter is usually weaker there, so ships stand out more.
+3. **Detection:** each pixel is compared with the mean of the surrounding 15 × 15 window. Pixels more than 4 dB above that local mean are marked as detections.
+4. **Clustering:** connected detection pixels are grouped, and groups with a bounding box smaller than 2 pixels are dropped.
+5. **Land masking (v2.0):** the centre of each bounding box is converted from pixel coordinates to longitude/latitude (accounting for the scene CRS and the resampling factor) and tested against Natural Earth 10 m land polygons. Detections on land are removed.
+6. **AIS placeholder:** each remaining detection is labelled "legal" or "dark" at random (80% / 20%). No AIS data is used.
+
+## Istanbul results
+
+On the default run the notebook finds **109 detections** in the anchorage area. These are candidates, not confirmed vessels: there is no ground truth for this scene.
+
+Land masking was checked on two areas:
+
+| Area | Raw detections | Removed as land | Remaining |
+|---|---|---|---|
+| Ahırkapı anchorage (open water, default notebook run) | 109 | 0 | 109 |
+| Bosphorus shoreline, bbox `[28.90, 40.95, 29.10, 41.05]` (same notebook, only the bbox changed) | 3,826 | 3,263 | 563 |
+
+Both runs use the same Sentinel-1 scene (`S1A_IW_GRDH_1SDV_20230811T160002_...`). The shoreline result was re-run and reproduced exactly in November 2026.
+
+The shoreline run shows that the land mask removes many land-based false alarms (buildings, port structures). It does not show that the remaining 563 detections are ships.
+
+| Median-filtered VH | CFAR detections | Random "AIS" labels (placeholder) |
+| :---: | :---: | :---: |
+| ![Filtered SAR Signal](https://github.com/user-attachments/assets/35258502-6944-47fb-a027-e93ad0ddd689) | ![CA-CFAR Detections](https://github.com/user-attachments/assets/c4675c32-aa17-47c0-b818-73a43082f523) | ![Random AIS labels](https://github.com/user-attachments/assets/c5b43f56-28a3-457f-a474-50608c1ae671) |
+
+## Known limitations (Istanbul notebook)
+
+- **No guard cells in the detector.** The local mean includes the pixel being tested and its immediate neighbours, so a large, bright ship raises its own background. A version with guard cells (v2.1) has been tested but is not yet in this repository.
+- **Resampling distorts the grid.** The window is about 17 km × 11 km but is resampled to 1000 × 1000 pixels, so pixels are roughly 17 m × 11 m instead of the native 10 m × 10 m.
+- **Coarse land mask, applied late.** Natural Earth 10 m polygons miss small structures such as piers, breakwaters and small islands, and only the box centre is tested. The mask is applied after detection rather than before it. The land polygons are also clipped to a fixed box (`[28.85, 40.90, 29.15, 41.10]`), so other areas need that box changed.
+- **No ground truth.** Detections in Istanbul are not scored; the xView3 benchmark is the only quantitative evaluation in this repository.
+- **The AIS step is random and unseeded.** Legal/dark counts change on every run and should not be interpreted.
+
+## Roadmap
+
+1. Evaluate on more xView3 scenes (two scenes are not enough for general conclusions).
+2. Use a higher-resolution coastline (for example OpenStreetMap water polygons) and apply the mask before detection.
+3. Use a low CFAR threshold as a candidate generator and a small CNN to classify the candidates, trained and tested on separate scenes.
+4. Replace the AIS placeholder with real AIS data.
+
+## History
+
+- **v1.0:** first pipeline. Land structures (coastline, cranes, buildings) were detected as targets and labelled as "dark vessels".
+- **v2.0:** land masking with Natural Earth polygons.
+- **Benchmark (November 2026):** two-scene evaluation on xView3-SAR, see [`benchmark/`](benchmark/).
+
+## Data and credits
+
+- Sentinel-1 RTC data: Copernicus Sentinel data, accessed through Microsoft Planetary Computer.
+- Land polygons: Natural Earth 10 m.
+- Benchmark labels and scenes: xView3-SAR (Paolo et al., NeurIPS 2022 Datasets and Benchmarks Track).
