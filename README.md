@@ -10,11 +10,14 @@ Optical satellite imagery (like Sentinel-2) suffers from "Spatial Blindness" due
 
 Going beyond simple detection, this pipeline features a simulated **Decision Support System (DSS)** that cross-references radar targets with AIS (Automatic Identification System) databases to identify **"Dark Vessels"**—ships that have intentionally disabled their tracking radios, often associated with illegal fishing, smuggling, or embargo evasion.
 
+## Detection benchmark (xView3-SAR)
+The detector family used in this project (CFAR variants) was evaluated against real labels on two xView3-SAR validation scenes, with thresholds chosen on one scene and tested on the other: see benchmark/. F1 fell from about 87% / 83% (CA / OS, scene 1, in-sample) to about 69% / 64% (scene 2), and the best threshold moved between scenes, so the fixed thresholds used for Istanbul here are not validated. The AIS cross-check in this project is still simulated.
+
 ## ⚙️ System Architecture (End-to-End Pipeline)
 
 1. **Autonomous Data Ingestion:** Connects directly to the Microsoft Planetary Computer API, fetches Sentinel-1 RTC (Radiometrically Terrain Corrected) data, resolves CRS/Projection conflicts dynamically, and converts raw linear backscatter into logarithmic Decibel (dB) scale.
 2. **Signal Processing:** Applies morphological Median Speckle Filtering to smooth out sea-surface noise and wave clutters while preserving high-intensity metallic backscatters (Volume Scattering in the VH polarization).
-3. **Tactical Detection (CA-CFAR):** Implements a military-standard **2D Cell-Averaging Constant False Alarm Rate (CA-CFAR)** algorithm. Instead of static thresholds, it dynamically calculates local ocean background noise to maintain a stable detection rate across varying weather conditions.
+3. **Tactical Detection (CA-CFAR):** Implements a **2D Cell-Averaging Constant False Alarm Rate (CA-CFAR)** algorithm. Instead of static thresholds, it dynamically calculates local ocean background noise.
 4. **Target Clustering & Bounding:** Connects activated pixels, filters out single-pixel anomalies (sea foam), and generates bounding boxes around valid metallic signatures.
 5. **Land Masking (v2.0):** Converts each detection's pixel coordinates to real-world geographic coordinates (via affine transform scaling), then cross-references them against Natural Earth coastline data (GeoPandas/Shapely) to programmatically drop any detections falling on land — *before* they reach the AIS cross-check stage.
 6. **Intelligence Cross-Checking (AIS Mock):** Extracts the spatial coordinates of the remaining, confirmed-maritime targets and simulates an API call to a global AIS database to classify each as either a `🟢 Legal Vessel` or a `🔴 Dark Vessel`.
