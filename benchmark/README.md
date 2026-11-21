@@ -1,18 +1,81 @@
-# CFAR ship detection on xView3-SAR: a two-scene benchmark
+# CFAR ship detection on xView3-SAR: two-scene benchmark and 49-scene evaluation
 
 This folder measures how well the classic CFAR detector family used in this project finds vessels in Sentinel-1 VH imagery, using the real labels of the [xView3-SAR](https://iuu.xview.us/) validation set.
 
 Three detectors are compared: **2D CA-CFAR**, **Hollow OS-CFAR** and **Two-Parameter CFAR**. Thresholds were chosen on one scene (calibration) and then run once, unchanged, on a second scene (test).
 
-**Main result:** the highest-scoring detector here (2D CA-CFAR) reached F1 87.3% on the calibration scene but 69.2% on the test scene with the same locked threshold. The optimal threshold moved between scenes, so a fixed dB threshold does not transfer reliably.
+**Main result (49 scenes):** with the thresholds locked on one calibration scene, the detectors were run unchanged on all other 49 scenes of the xView3-SAR validation set (1,642 evaluated vessels). Hollow OS-CFAR reached a pooled F1 of 70.7% and 2D CA-CFAR 67.6%. The locked CA-CFAR threshold turned out to be the best single threshold over all 49 scenes, but the best threshold of individual scenes varied widely, so a fixed threshold is right on average and wrong for many single scenes.
+
+The first, two-scene version of this benchmark suggested that CA-CFAR was the better detector. The 49-scene evaluation does not support that: OS-CFAR has clearly higher recall at its locked threshold.
+
+## 49-scene evaluation (all validation scenes)
+
+Notebook: [`cfar_xview3_multiscene.ipynb`](cfar_xview3_multiscene.ipynb). Its protocol was committed to this repository before any of these scenes were run: same detectors, same locked thresholds, same window, mask, matching and ignore rules as the two-scene benchmark below; every validation scene except the calibration scene, none dropped after seeing results. All 49 scenes were evaluated (0 skipped). The two-scene test scene `b1844cde847a3942v` is one of them and reproduced its earlier numbers exactly.
+
+**Coverage:** 3,058 labelled vessels in the 49 windows; 1,416 (46%) on cells of the coarse water mask marked as land (not evaluated); 1,642 evaluated (856 HIGH confidence).
+
+### Pooled over 49 scenes: all evaluated vessels (N = 1,642)
+
+TP, FP and FN are summed over scenes.
+
+| Operating point | TP | FP | FN | Precision (95% CI) | Recall (95% CI) | F1 |
+|---|---|---|---|---|---|---|
+| 2D CA-CFAR, locked T = 11.6 | 990 | 298 | 652 | 76.9% (74.5-79.1) | 60.3% (57.9-62.6) | 67.6% |
+| 2D CA-CFAR, ref T = 5.0 | 1,532 | 17,056 | 110 | 8.2% (7.9-8.6) | 93.3% (92.0-94.4) | 15.1% |
+| Hollow OS-CFAR, locked T = 8.1 | 1,111 | 390 | 531 | 74.0% (71.7-76.2) | 67.7% (65.4-69.9) | 70.7% |
+| Hollow OS-CFAR, ref T = 5.0 | 1,471 | 1,621 | 171 | 47.6% (45.8-49.3) | 89.6% (88.0-91.0) | 62.1% |
+| Two-Param CFAR, locked T = 5.5 σ | 894 | 966 | 748 | 48.1% (45.8-50.3) | 54.4% (52.0-56.8) | 51.1% |
+
+### Pooled over 49 scenes: HIGH-confidence labels only (N = 856)
+
+| Operating point | TP | FP | FN | Precision (95% CI) | Recall (95% CI) | F1 |
+|---|---|---|---|---|---|---|
+| 2D CA-CFAR, locked T = 11.6 | 727 | 277 | 129 | 72.4% (69.6-75.1) | 84.9% (82.4-87.2) | 78.2% |
+| 2D CA-CFAR, ref T = 5.0 | 845 | 17,045 | 11 | 4.7% (4.4-5.0) | 98.7% (97.7-99.3) | 9.0% |
+| Hollow OS-CFAR, locked T = 8.1 | 765 | 352 | 91 | 68.5% (65.7-71.1) | 89.4% (87.1-91.3) | 77.5% |
+| Hollow OS-CFAR, ref T = 5.0 | 834 | 1,597 | 22 | 34.3% (32.4-36.2) | 97.4% (96.1-98.3) | 50.7% |
+| Two-Param CFAR, locked T = 5.5 σ | 405 | 959 | 451 | 29.7% (27.3-32.2) | 47.3% (44.0-50.7) | 36.5% |
+
+Excluding the previous test scene (48 fully new scenes) changes little: CA-CFAR locked F1 67.5%, OS-CFAR locked F1 71.3%.
+
+### Per-scene spread and threshold drift
+
+| Detector (locked threshold) | Per-scene F1: min / 25% / median / 75% / max |
+|---|---|
+| 2D CA-CFAR (11.6 dB) | 11.1 / 50.0 / 66.7 / 72.0 / 96.3 |
+| Hollow OS-CFAR (8.1 dB) | 12.5 / 55.6 / 66.7 / 76.0 / 90.0 |
+| Two-Param CFAR (5.5 σ) | 11.3 / 25.0 / 41.2 / 65.5 / 83.4 |
+
+- **2D CA-CFAR:** the best threshold on individual scenes has a median of 10.7 dB (interquartile range 7.3-12.4 dB). Pooled over all scenes, F1 is highest exactly at the locked 11.6 dB (67.5% on the sweep grid).
+- **Hollow OS-CFAR:** best-on-scene median 7.3 dB (IQR 5.6-9.9 dB); pooled F1 is highest at 7.3 dB (72.9%, optimistic), close to the locked 8.1 dB.
+
+![Best threshold per scene](results/multiscene_best_threshold_hist.png)
+
+![CA-CFAR F1 per scene](results/multiscene_ca_f1_per_scene.png)
+
+### What the 49 scenes show
+
+1. **The locked threshold is right on average, not per scene.** The drift seen between two scenes is scene-to-scene variability, not a systematic offset: the calibration threshold matches the pooled optimum, while single scenes prefer anything from about 5.5 to 15 dB (the distribution has two groups, around 6-7 dB and 11-13 dB). No single fixed threshold can fix this; it calls for a scene-adaptive threshold or a second-stage classifier.
+2. **OS-CFAR, not CA-CFAR, scores higher overall.** Its recall at the locked threshold is higher with non-overlapping confidence intervals (67.7% vs 60.3%); precision is similar. The two-scene ranking did not generalise.
+3. **Recall is the weak point at the locked thresholds** (60-68% of all evaluated vessels), while HIGH-confidence vessels are found at 85-89%. Most misses are MEDIUM/LOW-confidence labels.
+4. **OS-CFAR at T = 5.0 dB is a usable candidate generator:** 89.6% recall with about 33 false alarms per 60 × 60 km scene. CA-CFAR at 5.0 dB is not (over 17,000 false alarms).
+5. **Two-Parameter CFAR stays far behind** on every measure.
+6. **About half of the labelled vessels sit on masked-out cells in every window** (46% over 49 scenes), so near-shore and harbour areas remain outside these results.
+
+## Two-scene benchmark
+
+This was the first version of the benchmark. Its conclusions about which detector is better and how thresholds transfer are revised by the 49-scene evaluation above.
 
 ## Files
 
 | File | Content |
 |---|---|
-| `cfar_xview3_benchmark.ipynb` | Full pipeline and evaluation, saved with outputs |
+| `cfar_xview3_benchmark.ipynb` | Two-scene benchmark: full pipeline and evaluation, saved with outputs |
+| `cfar_xview3_multiscene.ipynb` | 49-scene evaluation with the pre-registered protocol, saved with outputs |
 | `results/pr_curves_590dd08f71056cacv.png` | Precision-recall curves, scene 1 (calibration) |
 | `results/pr_curves_b1844cde847a3942v.png` | Precision-recall curves, scene 2 (test) |
+| `results/multiscene_best_threshold_hist.png` | 49 scenes: best threshold per scene for CA and OS-CFAR |
+| `results/multiscene_ca_f1_per_scene.png` | 49 scenes: CA-CFAR F1 per scene vs. number of evaluated vessels |
 
 ## Protocol
 
@@ -96,15 +159,15 @@ On scene 1 the best thresholds were the locked ones (CA 11.6 dB, OS 8.1 dB, Two-
 
 ## Findings
 
-1. **Fixed thresholds do not transfer reliably.** All three detectors needed a higher threshold on scene 2. Holding the scene 1 threshold cost 7 to 17 F1 points.
-2. **2D CA-CFAR had the highest F1 at the locked thresholds on both scenes and the smallest loss from drift**, but its lead over OS-CFAR is within the confidence intervals. Two-Parameter CFAR was far behind on both.
+1. **Fixed thresholds do not transfer reliably.** All three detectors needed a higher threshold on scene 2. Holding the scene 1 threshold cost 7 to 17 F1 points. *(The 49-scene evaluation shows this is scene-to-scene variability: the locked CA-CFAR threshold is the best single threshold over all scenes.)*
+2. **2D CA-CFAR had the highest F1 at the locked thresholds on both scenes and the smallest loss from drift**, but its lead over OS-CFAR is within the confidence intervals. Two-Parameter CFAR was far behind on both. *(Not confirmed on 49 scenes, where OS-CFAR scores higher.)*
 3. **HIGH-confidence vessels are found well on both scenes** (recall about 92-93% at the locked thresholds). Most misses on scene 2 are MEDIUM/LOW-confidence labels. This is partly expected: HIGH labels come from agreement between an automated pipeline (which itself uses CFAR-style detection) and human review.
 4. **The low reference threshold (T = 5.0 dB)** finds almost every evaluated vessel (CA: 98% recall on scene 2) at the cost of many false alarms (493 on a 60 × 60 km window). It could serve as a first-stage candidate generator for a second-stage classifier.
 5. **About half of the labelled vessels in each window were not evaluated** because the coarse water mask marks their cells as land. Near-shore and harbour areas are outside the scope of these results.
 
 ## Limitations
 
-- Two scenes and about 100 evaluated vessels each: confidence intervals are wide, and differences of a few F1 points are within noise.
+- Two-scene benchmark: two scenes and about 100 evaluated vessels each, so its confidence intervals are wide. The 49-scene evaluation (1,642 vessels) narrows them, but it still uses a single calibration scene and the 50 scenes of one dataset.
 - Unlabelled real objects are counted as false alarms, so precision is likely underestimated. The ignore rule is not one-to-one, which can slightly favour the detectors.
 - Results say nothing about vessels on masked-out cells (see Coverage).
 - This benchmark measures detection only. It does not evaluate any AIS-based "dark vessel" logic, and the label column `source` should not be read as "AIS on/off".
@@ -115,6 +178,7 @@ On scene 1 the best thresholds were the locked ones (CA 11.6 dB, OS 8.1 dB, Two-
 1. Register on the official xView3 site and download, under its terms, the validation labels (`validation.csv`) and a download-link file (`tiny.txt`) that contains links for the two scene ids above.
 2. Open `cfar_xview3_benchmark.ipynb` (for example in Google Colab) and place `validation.csv` and `tiny.txt` next to it.
 3. Run all cells. The download cell fetches and extracts the two scenes (scene 1 is about 1.3 GB compressed) without printing the signed links.
+4. For the 49-scene evaluation, open `cfar_xview3_multiscene.ipynb`, run all cells and upload a fresh `validation.txt` (VALIDATION SET button) and `validation.csv` when asked. Each scene takes about 6 minutes on Colab (about 5 hours in total); results are written after every scene, optionally backed up to one Google Drive folder, and an interrupted run resumes where it stopped.
 
 Do not commit the data, `tiny.txt` or any signed download link.
 

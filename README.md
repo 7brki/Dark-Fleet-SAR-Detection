@@ -11,18 +11,23 @@ The repository has two parts:
 | Part | What it is | What is real, what is not |
 |---|---|---|
 | [`Dark_Fleet_SAR_Detection_v2.ipynb`](Dark_Fleet_SAR_Detection_v2.ipynb) | Case study on one Sentinel-1 scene over the Istanbul Ahırkapı anchorage: download, speckle filtering, CFAR detection, land masking, and a placeholder AIS step | Detection and land masking run on real data. **The AIS step is a random placeholder**, so the "legal / dark" labels it produces carry no information. |
-| [`benchmark/`](benchmark/) | Evaluation of the same CFAR detector family against real labels from the xView3-SAR dataset, with thresholds chosen on one scene and tested on another | Real data, real labels, locked thresholds. |
+| [`benchmark/`](benchmark/) | Evaluation of the same CFAR detector family against real labels from the xView3-SAR dataset, with thresholds chosen on one scene and tested on the 49 other validation scenes | Real data, real labels, locked thresholds. |
 
 ## Key result: how well does the detector work?
 
-The Istanbul notebook has no ground truth, so its detections cannot be scored. To measure the detector, the same family of CFAR detectors was evaluated on two scenes of the [xView3-SAR](https://iuu.xview.us/) validation set. Thresholds were chosen on scene 1 and then run unchanged on scene 2.
+The Istanbul notebook has no ground truth, so its detections cannot be scored. To measure the detector, the same family of CFAR detectors was evaluated on the [xView3-SAR](https://iuu.xview.us/) validation set. Thresholds were chosen on one calibration scene, then run unchanged on the other 49 validation scenes (1,642 evaluated vessels), following a protocol committed before those scenes were run.
 
-| Detector | Scene 1 F1 (in-sample) | Scene 2 F1 (locked threshold) | Scene 2 F1 (best threshold, optimistic) |
-|---|---|---|---|
-| 2D CA-CFAR | 87.3% | 69.2% | 76.7% |
-| Hollow OS-CFAR | 83.3% | 63.5% | 74.2% |
+| Detector (locked threshold) | Precision | Recall | F1 (pooled over 49 scenes) | Per-scene F1, median (IQR) |
+|---|---|---|---|---|
+| Hollow OS-CFAR (8.1 dB) | 74.0% | 67.7% | 70.7% | 66.7% (55.6-76.0) |
+| 2D CA-CFAR (11.6 dB) | 76.9% | 60.3% | 67.6% | 66.7% (50.0-72.0) |
+| Two-Parameter CFAR (5.5 σ) | 48.1% | 54.4% | 51.1% | 41.2% (25.0-65.5) |
 
-Performance dropped on the unseen scene and the best threshold moved between scenes, so a fixed dB threshold does not transfer reliably. This also means the fixed threshold used in the Istanbul notebook is not validated. Full tables, confidence intervals, protocol and limitations are in [`benchmark/README.md`](benchmark/README.md).
+- **A fixed threshold is right on average but not per scene.** The locked CA-CFAR threshold is the best single threshold over all 49 scenes, yet the best threshold of individual scenes ranges from about 5.5 to 15 dB and per-scene F1 from 11% to 96%. This also means the fixed threshold used in the Istanbul notebook is not validated for that scene.
+- **An earlier two-scene version suggested CA-CFAR was better; 49 scenes show OS-CFAR ahead** (higher recall, non-overlapping confidence intervals).
+- **About half of the labelled vessels (46%) fall on cells of the dataset's coarse water mask marked as land** and are not evaluated.
+
+Full tables, confidence intervals, protocol and limitations are in [`benchmark/README.md`](benchmark/README.md).
 
 Note that the benchmark detectors use their own window sizes and thresholds (for example CA-CFAR with a 9 × 9 guard window, a 25 × 25 background window and T = 11.6 dB), which differ from the detector in the Istanbul notebook described below (5 × 5 guard window, 15 × 15 background window, 4 dB).
 
@@ -73,7 +78,7 @@ Figures below are from the v2.0 run; the notebook itself contains the v2.1 figur
 
 ## Roadmap
 
-1. Evaluate on more xView3 scenes (two scenes are not enough for general conclusions).
+1. ~~Evaluate on more xView3 scenes~~ (done: all 49 remaining validation scenes, November 2026).
 2. Use a higher-resolution coastline (for example OpenStreetMap water polygons) and apply the mask before detection.
 3. Use a low CFAR threshold as a candidate generator and a small CNN to classify the candidates, trained and tested on separate scenes.
 4. Replace the AIS placeholder with real AIS data.
@@ -83,7 +88,7 @@ Figures below are from the v2.0 run; the notebook itself contains the v2.1 figur
 - **v1.0:** first pipeline. Land structures (coastline, cranes, buildings) were detected as targets and labelled as "dark vessels".
 - **v2.0:** land masking with Natural Earth polygons.
 - **v2.1 (November 2026):** guard cells added to the CA-CFAR detector (109 → 119 detections in the anchorage).
-- **Benchmark (November 2026):** two-scene evaluation on xView3-SAR, see [`benchmark/`](benchmark/).
+- **Benchmark (November 2026):** two-scene evaluation on xView3-SAR, then a pre-registered 49-scene evaluation, see [`benchmark/`](benchmark/).
 
 ## Data and credits
 
