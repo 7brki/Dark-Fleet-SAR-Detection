@@ -8,6 +8,8 @@ Three detectors are compared: **2D CA-CFAR**, **Hollow OS-CFAR** and **Two-Param
 
 The first, two-scene version of this benchmark suggested that CA-CFAR was the better detector. The 49-scene evaluation does not support that: OS-CFAR has clearly higher recall at its locked threshold.
 
+**Follow-up:** using OS-CFAR at the low reference threshold (T = 5.0 dB) as a candidate generator, followed by a classifier, raises pooled F1 on the same 49 scenes from 70.7% to 78.5%. See [`../cnn/README.md`](../cnn/README.md).
+
 ## 49-scene evaluation (all validation scenes)
 
 Notebook: [`cfar_xview3_multiscene.ipynb`](cfar_xview3_multiscene.ipynb). Its protocol was committed to this repository before any of these scenes were run: same detectors, same locked thresholds, same window, mask, matching and ignore rules as the two-scene benchmark below; every validation scene except the calibration scene, none dropped after seeing results. All 49 scenes were evaluated (0 skipped). The two-scene test scene `b1844cde847a3942v` is one of them and reproduced its earlier numbers exactly.

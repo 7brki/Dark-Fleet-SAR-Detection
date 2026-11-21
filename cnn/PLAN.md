@@ -90,4 +90,6 @@ When this section was written, the chips had been extracted and their label coun
 
 ## Deviations
 
-None yet.
+None. One clarification: section 4 estimates the model at "about 0.3 M parameters"; the architecture as specified has 0.24 M.
+
+Results: [`README.md`](README.md).

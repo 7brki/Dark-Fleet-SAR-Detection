@@ -6,14 +6,15 @@
 
 A small, end-to-end ship detection pipeline for Sentinel-1 radar imagery, built as a learning project around the "dark vessel" problem: ships that are visible on radar but do not broadcast their position over AIS.
 
-The repository has two parts:
+The repository has three parts:
 
 | Part | What it is | What is real, what is not |
 |---|---|---|
 | [`Dark_Fleet_SAR_Detection_v2.ipynb`](Dark_Fleet_SAR_Detection_v2.ipynb) | Case study on one Sentinel-1 scene over the Istanbul Ahırkapı anchorage: download, speckle filtering, CFAR detection, land masking, and a placeholder AIS step | Detection and land masking run on real data. **The AIS step is a random placeholder**, so the "legal / dark" labels it produces carry no information. |
 | [`benchmark/`](benchmark/) | Evaluation of the same CFAR detector family against real labels from the xView3-SAR dataset, with thresholds chosen on one scene and tested on the 49 other validation scenes | Real data, real labels, locked thresholds. |
+| [`cnn/`](cnn/) | Two-stage detection on the same 49 scenes: a low-threshold CFAR proposes candidates, a small CNN classifies them | Real data, real labels, scene-grouped cross-validation, pre-registered plan. |
 
-## Key result: how well does the detector work?
+## Key results: how well do the detectors work?
 
 The Istanbul notebook has no ground truth, so its detections cannot be scored. To measure the detector, the same family of CFAR detectors was evaluated on the [xView3-SAR](https://iuu.xview.us/) validation set. Thresholds were chosen on one calibration scene, then run unchanged on the other 49 validation scenes (1,642 evaluated vessels), following a protocol committed before those scenes were run.
 
@@ -28,6 +29,21 @@ The Istanbul notebook has no ground truth, so its detections cannot be scored. T
 - **About half of the labelled vessels (46%) fall on cells of the dataset's coarse water mask marked as land** and are not evaluated.
 
 Full tables, confidence intervals, protocol and limitations are in [`benchmark/README.md`](benchmark/README.md).
+
+### Two-stage detection: CFAR candidates + CNN
+
+A low-threshold OS-CFAR (T = 5.0 dB) proposes candidates, and a small CNN classifies a 64 × 64 VH + VV chip around each one. It is trained and tested with 5-fold cross-validation grouped by scene, so no scene is used for both. The plan, decision rule and success criterion were committed before any model was trained.
+
+| System (49 scenes, 1,642 evaluated vessels) | Precision | Recall | F1 | Recall on `manual` vessels (no AIS match) |
+|---|---|---|---|---|
+| Hollow OS-CFAR, T = 8.1 dB (best single stage) | 74.0% | 67.7% | 70.7% | 46.8% |
+| **CFAR T = 5.0 dB + CNN** | **77.3%** | **79.7%** | **78.5%** | **64.8%** |
+
+- **+7.8 F1 points (95% paired scene-level bootstrap interval +4.8 to +10.5).** The two-stage system finds 198 more vessels with 5 fewer false alarms. The gain holds for all six random seeds tested (+6.4 to +8.7).
+- **The biggest gain is on vessels without an AIS match** (the closest proxy for dark vessels in xView3): recall rises from 47% to 65%.
+- **The CNN is not what makes the difference.** Gradient-boosted trees on 11 hand-crafted chip features (brightness, contrast, VH minus VV) reach the same F1 (78.9%; the CNN minus this model is −0.4, 95% CI −2.5 to +1.4). The improvement comes from the two-stage design: a low threshold, then a second-stage classifier.
+
+Details, secondary analyses and limitations are in [`cnn/README.md`](cnn/README.md).
 
 Note that the benchmark detectors use their own window sizes and thresholds (for example CA-CFAR with a 9 × 9 guard window, a 25 × 25 background window and T = 11.6 dB), which differ from the detector in the Istanbul notebook described below (5 × 5 guard window, 15 × 15 background window, 4 dB).
 
@@ -73,15 +89,16 @@ Figures below are from the v2.0 run; the notebook itself contains the v2.1 figur
 
 - **Resampling distorts the grid.** The window is about 17 km × 11 km but is resampled to 1000 × 1000 pixels, so pixels are roughly 17 m × 11 m instead of the native 10 m × 10 m.
 - **Coarse land mask, applied late.** Natural Earth 10 m polygons miss small structures such as piers, breakwaters and small islands, and only the box centre is tested. The mask is applied after detection rather than before it. The land polygons are also clipped to a fixed box (`[28.85, 40.90, 29.15, 41.10]`), so other areas need that box changed.
-- **No ground truth.** Detections in Istanbul are not scored; the xView3 benchmark is the only quantitative evaluation in this repository.
+- **No ground truth.** Detections in Istanbul are not scored; the xView3 evaluations (`benchmark/` and `cnn/`) are the only quantitative evaluations in this repository.
 - **The AIS step is a random placeholder** (fixed seed, so the output is repeatable). Its "AIS match / no AIS" labels carry no information.
 
 ## Roadmap
 
 1. ~~Evaluate on more xView3 scenes~~ (done: all 49 remaining validation scenes, November 2026).
 2. Use a higher-resolution coastline (for example OpenStreetMap water polygons) and apply the mask before detection.
-3. Use a low CFAR threshold as a candidate generator and a small CNN to classify the candidates, trained and tested on separate scenes.
-4. Replace the AIS placeholder with real AIS data.
+3. ~~Use a low CFAR threshold as a candidate generator and a small CNN to classify the candidates, trained and tested on separate scenes~~ (done, November 2026: +7.8 F1 points over the best single-stage CFAR, see [`cnn/`](cnn/)).
+4. An end-to-end detector (a pretrained YOLO model fine-tuned on small boxes derived from the point labels), evaluated on the same 49 scenes, folds and scoring, to compare single-stage CFAR, CFAR + classifier and an end-to-end detector side by side.
+5. Replace the AIS placeholder with real AIS data.
 
 ## History
 
@@ -89,6 +106,7 @@ Figures below are from the v2.0 run; the notebook itself contains the v2.1 figur
 - **v2.0:** land masking with Natural Earth polygons.
 - **v2.1 (November 2026):** guard cells added to the CA-CFAR detector (109 → 119 detections in the anchorage).
 - **Benchmark (November 2026):** two-scene evaluation on xView3-SAR, then a pre-registered 49-scene evaluation, see [`benchmark/`](benchmark/).
+- **Two-stage detection (November 2026):** CFAR candidates + CNN classifier with scene-grouped cross-validation on the same 49 scenes, see [`cnn/`](cnn/).
 
 ## Data and credits
 
