@@ -12,14 +12,15 @@ Baseline to beat (from `benchmark/cfar_xview3_multiscene.ipynb`): **Hollow OS-CF
 
 - Hollow OS-CFAR, guard 9 × 9, outer 21 × 21, 85th percentile, **T = 5.0 dB** (the locked low reference threshold of the benchmark), brightness floor −30 dB, same preprocessing, window, water mask, closing and minimum area as the benchmark.
 - On the 49 scenes this gives recall 89.6% with 1,621 false alarms. Vessels it misses cannot be recovered by stage 2, so **89.6% is the recall ceiling** of the two-stage system.
+- Disclosure: T = 5.0 dB was fixed in advance as the benchmark's reference threshold, but the decision to use OS-CFAR (and not CA-CFAR) at this threshold as the candidate generator was made after seeing both on these 49 scenes (CA-CFAR at 5.0 dB gave over 17,000 false alarms). This is a mild use of test-set information and is stated here rather than hidden.
 
 ## 2. Chips and labels
 
-- One chip per candidate: **64 × 64 pixels (640 m × 640 m)** centred on the candidate centroid, **two channels: VH and VV in dB**, clipped to [−35, 5] dB and scaled to [0, 1]. Chips crossing the window edge are padded with −35 dB.
+- One chip per candidate: **64 × 64 pixels (640 m × 640 m)** centred on the candidate centroid, **two channels: VH and VV in dB, taken from the unfiltered images** (the 3 × 3 median filter is used only by the CFAR candidate generator), clipped to [−35, 5] dB and scaled to [0, 1]. Chips crossing the window edge are padded with −35 dB.
 - Label from the benchmark matching (one-to-one Hungarian, 20 px):
   - **positive (1):** candidate matched to an evaluated vessel (`is_vessel == True`);
   - **negative (0):** candidate matched to nothing and not within 20 px of a labelled non-vessel or unknown object;
-  - **excluded from training:** candidates within 20 px of a labelled non-vessel or unknown object (these are "ignore" in scoring, so they are neither rewarded nor penalised there either). They are still classified at test time and scored with the ignore rule.
+  - **excluded from training:** candidates within 20 px of a labelled non-vessel or unknown object (these are "ignore" in scoring, so they are neither rewarded nor penalised there either), and unmatched candidates within 20 px of an evaluated vessel (typically a second candidate on the same vessel, whose label is ambiguous). Both are still classified at test time and scored with the benchmark rules, so the scoring is unchanged.
 - Stored per chip: scene id, candidate position, label, and for positives the matched vessel's `source` and `confidence`.
 - Known label noise: some negatives may be real but unlabelled vessels (seen in the two-scene benchmark). This is not corrected.
 
@@ -50,13 +51,17 @@ Baseline to beat (from `benchmark/cfar_xview3_multiscene.ipynb`): **Hollow OS-CF
 
 ## 6. Notebooks and data handling
 
-- `cnn/extract_chips.ipynb`: downloads each scene (VH, VV, owiMask only), runs the candidate generator, writes chips and labels, deletes the scene. Resumable; chips are backed up to the same single Google Drive folder used by the benchmark (about 50 MB in total). Signed links are never printed or saved.
+- `cnn/build_cache_and_chips.ipynb`: downloads each scene **once** (VH, VV, owiMask and owiWindSpeed only), and saves to one Google Drive folder: the 6000 × 6000 benchmark window of VH and VV (float16), the water mask, the wind-speed window and the window's georeferencing, plus the candidates, chips and labels of this plan. The scene archive is then deleted. Resumable, and it checks its candidate counts against the 49-scene benchmark results. Later stages (YOLO, coastline, wind analysis) read this cache instead of downloading the scenes again. Signed links are never printed or saved.
 - `cnn/train_eval.ipynb`: cross-validation training, out-of-fold prediction, scoring and the bootstrap.
 - Neither data nor chips are committed to the repository.
 
 ## Later stage (not part of this pre-registration)
 
 After this plan is completed, an end-to-end detector (a pretrained YOLO model fine-tuned on small boxes derived from the point labels) will be evaluated on the same 49 scenes with the same scene-grouped folds and scoring, so that single-stage CFAR, CFAR + CNN and end-to-end YOLO can be compared side by side. Its exact settings will be fixed in a separate plan before it is trained. Segmentation models such as SAM are not planned: the labels are points, not outlines, and vessels are only a few pixels long at 10 m resolution.
+
+## Changes made before any data was extracted
+
+Committed after the first version of this plan and before any chip was extracted: (1) unmatched candidates next to an evaluated vessel are excluded from training; (2) chips come from the unfiltered images; (3) the candidate generator choice is disclosed as informed by the 49-scene results; (4) scenes are downloaded once and cached for later stages.
 
 ## Deviations
 
