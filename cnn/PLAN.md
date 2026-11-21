@@ -63,6 +63,31 @@ After this plan is completed, an end-to-end detector (a pretrained YOLO model fi
 
 Committed after the first version of this plan and before any chip was extracted: (1) unmatched candidates next to an evaluated vessel are excluded from training; (2) chips come from the unfiltered images; (3) the candidate generator choice is disclosed as informed by the 49-scene results; (4) scenes are downloaded once and cached for later stages.
 
+## Additions fixed after chip extraction and before any model was trained (21 November 2026)
+
+When this section was written, the chips had been extracted and their label counts were known (49 scenes: 1,471 positive, 1,447 negative, 1,658 excluded). No model had been trained and no prediction existed. **The primary question, decision rule and success criterion above are unchanged.** This section only pins down details the plan left open and adds secondary analyses. The additions follow a literature check: two-stage CFAR + small CNN discrimination on Sentinel-1 VH + VV chips is a standard design (for example Remote Sensing 13(6):1184, 2021), and the xView3 winners report no gain from wind or bathymetry inputs.
+
+### Implementation details
+
+- **Folds:** the 49 scene ids are sorted, permuted with `numpy.random.default_rng(42)` and cut with `numpy.array_split` into 5 folds (10, 10, 10, 10 and 9 scenes). For test fold k, fold (k + 1) mod 5 is the early-stopping fold and the other three folds are the fitting set.
+- **Training:** `pos_weight` = negatives / positives of the fitting set. Validation loss uses the same weighted loss. After early stopping the weights of the epoch with the lowest validation loss are restored. Augmentation is applied per sample (each of horizontal flip, vertical flip, and a rotation by 0, 90, 180 or 270°, drawn independently).
+- **Test-time prediction:** every candidate of a test scene is classified, including those excluded from training, with no test-time augmentation.
+- **Baselines:** OS-CFAR T = 8.1 and CA-CFAR T = 11.6 are recomputed from the scene cache with the benchmark code, and their per-scene TP / FP / FN are compared with `multiscene_results.csv`. The cache stores VH as float16 (rounding up to about 0.01 dB), so a pixel at the threshold can flip. If any scene differs, the primary comparison uses the benchmark's stored per-scene counts, and the differences are reported. Recall by label source needs vessel-level matches and uses the recomputed detections either way.
+- **Bootstrap:** paired. Each of the 1,000 resamples (seed 42) draws 49 scenes with replacement, and both systems are pooled over the same draw. The interval is the 2.5th to 97.5th percentile of the F1 differences.
+
+### Secondary analyses added (none of them changes the primary result)
+
+1. **Seed sensitivity.** The whole cross-validation is repeated with seeds 1 to 5. Each seed changes the fold assignment, weight initialisation, batch order and augmentation. The spread of the F1 difference is reported next to the primary seed-42 result. Reason: variation from data splits and initialisation can be as large as the effect being measured (Bouthillier et al., "Accounting for Variance in Machine Learning Benchmarks", MLSys 2021).
+2. **Hand-crafted feature baseline.** A gradient-boosted tree classifier (scikit-learn `HistGradientBoostingClassifier`, default settings, `class_weight="balanced"`, seed 42) is trained on the same folds. Its 11 features come from each chip: VH and VV peak and core mean, ring median of VH and VV, ring standard deviation of VH, VH and VV peak-to-ring contrast, VH minus VV peak, and the count of bright VH pixels. It uses the same 0.5 rule and is trained on all four training folds, with no early stopping. This is the classical discrimination stage, and it tests whether the CNN learns more than simple brightness and contrast cues.
+3. **Duplicate suppression.** About 170 unmatched candidates lie next to an evaluated vessel, typically a second fragment of the same vessel. They are excluded from training but scored as false alarms. A variant of the two-stage system keeps, within 20 px, only the candidate with the highest CNN probability (non-maximum suppression). It is reported separately because the single-stage baselines do not get this step.
+
+### Considered and not adopted
+
+- **ImageNet-pretrained backbone:** the inputs are 64 × 64 chips with two radar channels, and small from-scratch CNNs are the usual choice for this stage. Adding a pretrained backbone would need its own hyperparameter choices.
+- **Label smoothing:** the xView3 first place used it in a different setting (a full-scene detector).
+- **Other input scaling:** the xView3 second place used (dB + 40) / 15 with no upper clip. The chips here are clipped at 5 dB, so very bright targets saturate. This is kept as a known limitation, because the chips were already extracted and very bright targets are rarely false alarms.
+- **Wind or bathymetry inputs:** the xView3 first and second place found no gain.
+
 ## Deviations
 
 None yet.
