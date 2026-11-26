@@ -108,6 +108,10 @@ Figures below are from the v2.0 run; the notebook itself contains the v2.1 figur
 - **Benchmark (November 2026):** two-scene evaluation on xView3-SAR, then a pre-registered 49-scene evaluation, see [`benchmark/`](benchmark/).
 - **Two-stage detection (November 2026):** CFAR candidates + CNN classifier with scene-grouped cross-validation on the same 49 scenes, see [`cnn/`](cnn/).
 
+## Requirements and license
+
+Python packages are listed in [`requirements.txt`](requirements.txt) (all notebooks run on Google Colab). Code is released under the [MIT License](LICENSE).
+
 ## Data and credits
 
 - Sentinel-1 RTC data: Copernicus Sentinel data, accessed through Microsoft Planetary Computer.
